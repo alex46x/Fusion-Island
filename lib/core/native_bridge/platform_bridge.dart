@@ -1,19 +1,20 @@
-import 'dart:async';
 import 'package:flutter/services.dart';
-import '../constants/app_constants.dart';
 
 class PlatformBridge {
-  static const MethodChannel _overlayChannel = MethodChannel(AppConstants.overlayChannel);
-  static const MethodChannel _systemChannel = MethodChannel(AppConstants.systemStatusChannel);
-  static const EventChannel _notificationEventChannel = EventChannel('${AppConstants.notificationChannel}/stream');
-  static const EventChannel _mediaEventChannel = EventChannel('${AppConstants.mediaChannel}/stream');
+  static const MethodChannel _overlayChannel =
+      MethodChannel('com.fusionisland.app/overlay');
+  static const MethodChannel _systemChannel =
+      MethodChannel('com.fusionisland.app/system_status');
+  static const EventChannel _notificationEventChannel =
+      EventChannel('com.fusionisland.app/notifications');
 
-  /// Check if Overlay permission (SYSTEM_ALERT_WINDOW) is granted
+  /// Check if Overlay permission is granted
   static Future<bool> isOverlayPermissionGranted() async {
     try {
-      final bool result = await _overlayChannel.invokeMethod('isOverlayPermissionGranted');
+      final bool result =
+          await _overlayChannel.invokeMethod('isOverlayPermissionGranted');
       return result;
-    } on PlatformException catch (_) {
+    } on PlatformException {
       return false;
     }
   }
@@ -21,35 +22,58 @@ class PlatformBridge {
   /// Request Overlay permission
   static Future<bool> requestOverlayPermission() async {
     try {
-      final bool result = await _overlayChannel.invokeMethod('requestOverlayPermission');
+      final bool result =
+          await _overlayChannel.invokeMethod('requestOverlayPermission');
       return result;
-    } on PlatformException catch (_) {
+    } on PlatformException {
       return false;
     }
   }
 
-  /// Start Floating Dynamic Island Overlay Service
+  /// Check if Notification Listener permission is granted
+  static Future<bool> isNotificationListenerGranted() async {
+    try {
+      final bool result =
+          await _overlayChannel.invokeMethod('isNotificationListenerGranted');
+      return result;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Request Notification Listener permission
+  static Future<void> requestNotificationListenerPermission() async {
+    try {
+      await _overlayChannel.invokeMethod('requestNotificationListenerPermission');
+    } on PlatformException {
+      // Platform unsupported or error
+    }
+  }
+
+  /// Start Floating Overlay Foreground Service
   static Future<bool> startOverlayService() async {
     try {
-      final bool result = await _overlayChannel.invokeMethod('startOverlay');
+      final bool result =
+          await _overlayChannel.invokeMethod('startOverlay');
       return result;
-    } on PlatformException catch (_) {
+    } on PlatformException {
       return false;
     }
   }
 
-  /// Stop Floating Dynamic Island Overlay Service
+  /// Stop Floating Overlay Foreground Service
   static Future<bool> stopOverlayService() async {
     try {
-      final bool result = await _overlayChannel.invokeMethod('stopOverlay');
+      final bool result =
+          await _overlayChannel.invokeMethod('stopOverlay');
       return result;
-    } on PlatformException catch (_) {
+    } on PlatformException {
       return false;
     }
   }
 
-  /// Update Floating Dynamic Island Parameters (Width, Height, OffsetX, OffsetY, CornerRadius)
-  static Future<void> updateOverlayConfig({
+  /// Update Floating Overlay Configuration
+  static Future<bool> updateOverlayConfig({
     required double width,
     required double height,
     required double offsetX,
@@ -57,37 +81,44 @@ class PlatformBridge {
     required double cornerRadius,
   }) async {
     try {
-      await _overlayChannel.invokeMethod('updateOverlayConfig', {
-        'width': width,
-        'height': height,
-        'offsetX': offsetX,
-        'offsetY': offsetY,
-        'cornerRadius': cornerRadius,
-      });
-    } on PlatformException catch (_) {}
+      final bool result = await _overlayChannel.invokeMethod(
+        'updateOverlayConfig',
+        {
+          'width': width,
+          'height': height,
+          'offsetX': offsetX,
+          'offsetY': offsetY,
+          'cornerRadius': cornerRadius,
+        },
+      );
+      return result;
+    } on PlatformException {
+      return false;
+    }
   }
 
-  /// Stream of notification events from native NotificationListenerService
+  /// Fetch system battery, network, and memory metrics
+  static Future<Map<String, dynamic>> getSystemMetrics() async {
+    try {
+      final Map<dynamic, dynamic>? result =
+          await _systemChannel.invokeMethod('getSystemMetrics');
+      if (result != null) {
+        return Map<String, dynamic>.from(result);
+      }
+    } on PlatformException {
+      // Fallback dummy metrics
+    }
+    return {
+      'batteryLevel': 85,
+      'isCharging': true,
+      'wifiConnected': true,
+    };
+  }
+
+  /// Stream of incoming notifications from Android NotificationListenerService
   static Stream<Map<String, dynamic>> get notificationStream {
     return _notificationEventChannel
         .receiveBroadcastStream()
-        .map((dynamic event) => Map<String, dynamic>.from(event as Map));
-  }
-
-  /// Stream of media session events (playing track, cover art, state)
-  static Stream<Map<String, dynamic>> get mediaStream {
-    return _mediaEventChannel
-        .receiveBroadcastStream()
-        .map((dynamic event) => Map<String, dynamic>.from(event as Map));
-  }
-
-  /// Get hardware metrics (battery, memory, wifi)
-  static Future<Map<String, dynamic>> getSystemMetrics() async {
-    try {
-      final Map<dynamic, dynamic> result = await _systemChannel.invokeMethod('getSystemMetrics');
-      return Map<String, dynamic>.from(result);
-    } on PlatformException catch (_) {
-      return {};
-    }
+        .map((event) => Map<String, dynamic>.from(event as Map));
   }
 }

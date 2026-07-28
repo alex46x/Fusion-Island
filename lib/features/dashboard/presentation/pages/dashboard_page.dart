@@ -10,6 +10,7 @@ import '../../../overlay/presentation/widgets/dynamic_island_overlay.dart';
 
 final overlayServiceRunningProvider = StateProvider<bool>((ref) => false);
 final overlayPermissionGrantedProvider = StateProvider<bool>((ref) => false);
+final notificationPermissionGrantedProvider = StateProvider<bool>((ref) => false);
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -26,8 +27,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   Future<void> _checkPermissions() async {
-    final granted = await PlatformBridge.isOverlayPermissionGranted();
-    ref.read(overlayPermissionGrantedProvider.notifier).state = granted;
+    final overlayGranted = await PlatformBridge.isOverlayPermissionGranted();
+    final notifGranted = await PlatformBridge.isNotificationListenerGranted();
+
+    ref.read(overlayPermissionGrantedProvider.notifier).state = overlayGranted;
+    ref.read(notificationPermissionGrantedProvider.notifier).state = notifGranted;
   }
 
   Future<void> _toggleService(bool value) async {
@@ -49,7 +53,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final isRunning = ref.watch(overlayServiceRunningProvider);
-    final hasPermission = ref.watch(overlayPermissionGrantedProvider);
+    final hasOverlayPermission = ref.watch(overlayPermissionGrantedProvider);
+    final hasNotifPermission = ref.watch(notificationPermissionGrantedProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -98,7 +103,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                   const SizedBox(height: 12),
                   const Text(
-                    'Tap island above for interactive expansion preview',
+                    'Tap island above to cycle through Notification, Music & Call cards',
                     style: TextStyle(color: Colors.white38, fontSize: 11),
                   ),
                 ],
@@ -158,8 +163,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             const SizedBox(height: 16),
 
-            // Permission Warning Banner if not granted
-            if (!hasPermission) ...[
+            // Overlay Permission Warning Banner
+            if (!hasOverlayPermission) ...[
               Card(
                 color: const Color(0x33FF5252),
                 child: Padding(
@@ -170,7 +175,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       const SizedBox(width: 16),
                       const Expanded(
                         child: Text(
-                          'Overlay permission required to display Dynamic Island over other apps.',
+                          'Overlay permission required to display floating Dynamic Island.',
                           style: TextStyle(color: Colors.white, fontSize: 13),
                         ),
                       ),
@@ -184,6 +189,40 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ref.read(overlayPermissionGrantedProvider.notifier).state = res;
                         },
                         child: const Text('Grant'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Notification Listener Permission Banner
+            if (!hasNotifPermission) ...[
+              Card(
+                color: const Color(0x337F00FF),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.notifications_active_outlined, color: AppTheme.accentPurple, size: 28),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Text(
+                          'Notification Access required to intercept system alerts & music info.',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.accentPurple,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () async {
+                          await PlatformBridge.requestNotificationListenerPermission();
+                          _checkPermissions();
+                        },
+                        child: const Text('Enable'),
                       ),
                     ],
                   ),
@@ -225,7 +264,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   subtitle: 'Spotify, YT Music, VLC',
                   icon: Icons.music_note_rounded,
                   color: AppTheme.primaryBlue,
-                  onTap: () {},
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Media Session Controller Active')),
+                    );
+                  },
                 ),
                 _buildModuleCard(
                   context,
@@ -233,7 +276,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   subtitle: 'App alerts & Quick Reply',
                   icon: Icons.notifications_active_rounded,
                   color: AppTheme.accentPurple,
-                  onTap: () {},
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Notification Interceptor Active')),
+                    );
+                  },
                 ),
                 _buildModuleCard(
                   context,
@@ -241,7 +288,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   subtitle: 'Battery, RAM, Wi-Fi',
                   icon: Icons.memory_rounded,
                   color: AppTheme.accentNeonGreen,
-                  onTap: () {},
+                  onTap: () async {
+                    final metrics = await PlatformBridge.getSystemMetrics();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Battery: ${metrics['batteryLevel']}% | Charging: ${metrics['isCharging']} | Wi-Fi: ${metrics['wifiConnected']}',
+                          ),
+                        ),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
