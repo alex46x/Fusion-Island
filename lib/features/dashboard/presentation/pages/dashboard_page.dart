@@ -154,7 +154,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             iconBgColor: const Color(0xFFC0A000),
             title: 'General',
             subtitle: 'Display settings and interaction',
-            onTap: () => context.push('/settings'),
+            onTap: () => context.push('/general-settings'),
           ),
           const Divider(height: 1, indent: 72),
 

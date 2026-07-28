@@ -5,6 +5,7 @@ import '../storage/storage_service.dart';
 import '../../features/calibration/presentation/pages/calibration_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
+import '../../features/settings/presentation/pages/general_settings_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 
 class AppRouter {
@@ -33,6 +34,11 @@ class AppRouter {
           path: '/settings',
           name: 'settings',
           builder: (BuildContext context, GoRouterState state) => const SettingsPage(),
+        ),
+        GoRoute(
+          path: '/general-settings',
+          name: 'general-settings',
+          builder: (BuildContext context, GoRouterState state) => const GeneralSettingsPage(),
         ),
       ],
     );

@@ -23,6 +23,9 @@ class StorageService {
   static Future<void> setDouble(String key, double value) async => await _settingsBox.put(key, value);
   static double getDouble(String key, {double defaultValue = 0.0}) => (_settingsBox.get(key) as double?) ?? defaultValue;
 
+  static Future<void> setInt(String key, int value) async => await _settingsBox.put(key, value);
+  static int getInt(String key, {int defaultValue = 0}) => (_settingsBox.get(key) as int?) ?? defaultValue;
+
   // Calibration Profile Storage
   static Future<void> saveCalibrationProfile(String profileName, Map<String, dynamic> data) async {
     await _calibrationBox.put(profileName, data);
