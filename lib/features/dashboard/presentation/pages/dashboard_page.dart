@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,11 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/native_bridge/platform_bridge.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../calibration/presentation/pages/calibration_page.dart';
 import '../../../overlay/presentation/widgets/dynamic_island_overlay.dart';
+import '../../../settings/presentation/pages/settings_page.dart';
 
 final overlayServiceRunningProvider = StateProvider<bool>((ref) => false);
 final overlayPermissionGrantedProvider = StateProvider<bool>((ref) => false);
 final notificationPermissionGrantedProvider = StateProvider<bool>((ref) => false);
+final batteryOptimizationIgnoredProvider = StateProvider<bool>((ref) => false);
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -20,6 +24,8 @@ class DashboardPage extends ConsumerStatefulWidget {
 }
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
+  int _currentTab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -29,9 +35,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Future<void> _checkPermissions() async {
     final overlayGranted = await PlatformBridge.isOverlayPermissionGranted();
     final notifGranted = await PlatformBridge.isNotificationListenerGranted();
+    final batteryIgnored = await PlatformBridge.isBatteryOptimizationIgnored();
 
     ref.read(overlayPermissionGrantedProvider.notifier).state = overlayGranted;
     ref.read(notificationPermissionGrantedProvider.notifier).state = notifGranted;
+    ref.read(batteryOptimizationIgnoredProvider.notifier).state = batteryIgnored;
   }
 
   Future<void> _toggleService(bool value) async {
@@ -55,11 +63,51 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final isRunning = ref.watch(overlayServiceRunningProvider);
     final hasOverlayPermission = ref.watch(overlayPermissionGrantedProvider);
     final hasNotifPermission = ref.watch(notificationPermissionGrantedProvider);
+    final isBatteryIgnored = ref.watch(batteryOptimizationIgnoredProvider);
 
     return Scaffold(
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
-        title: Text(AppConstants.appName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        toolbarHeight: 70,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.primaryCyan,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.blur_on_rounded, color: Colors.black, size: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  AppConstants.appName,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              AppConstants.appTagline,
+              style: GoogleFonts.outfit(color: Colors.white54, fontSize: 11),
+            ),
+          ],
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded, color: Colors.white70),
+            onPressed: () {},
+          ),
           IconButton(
             icon: const Icon(Icons.bug_report_outlined, color: AppTheme.primaryCyan),
             tooltip: 'Developer Debug Panel',
@@ -69,69 +117,103 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             icon: const Icon(Icons.settings_outlined, color: Colors.white),
             onPressed: () => context.push('/settings'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Hero Banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+      body: IndexedStack(
+        index: _currentTab,
+        children: [
+          _buildHomeDashboardTab(isRunning, hasOverlayPermission, hasNotifPermission, isBatteryIgnored),
+          const CalibrationPage(),
+          _buildLiveActivitiesTab(),
+          _buildThemesTab(),
+          const SettingsPage(),
+        ],
+      ),
+      bottomNavigationBar: _buildModernBottomNavBar(),
+    );
+  }
+
+  // TAB 1: Home Flagship Dashboard
+  Widget _buildHomeDashboardTab(bool isRunning, bool hasOverlayPermission, bool hasNotifPermission, bool isBatteryIgnored) {
+    final bool allGreen = isRunning && hasOverlayPermission && hasNotifPermission;
+    final bool partialOrange = isRunning && (!hasNotifPermission || !isBatteryIgnored);
+
+    Color statusColor = Colors.redAccent;
+    String statusTitle = 'Service Stopped';
+    String statusDesc = 'Enable Dynamic Island floating overlay service';
+
+    if (allGreen) {
+      statusColor = AppTheme.accentNeonGreen;
+      statusTitle = 'Dynamic Island Active';
+      statusDesc = 'Floating window active at 120Hz liquid motion';
+    } else if (partialOrange) {
+      statusColor = Colors.orangeAccent;
+      statusTitle = 'Partially Configured';
+      statusDesc = 'Grant notification & battery permissions for best performance';
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Dynamic Island Live Interactive Artwork Banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: const Color(0x33FFFFFF)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 8),
                 ),
-                border: Border.all(color: const Color(0x33FFFFFF)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    AppConstants.appTagline,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Live Interactive Preview
-                  const Center(
-                    child: DynamicIslandOverlay(),
-                  ),
-
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Tap island above to cycle through Notification, Music & Call cards',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
+            child: Column(
+              children: [
+                const Center(child: DynamicIslandOverlay()),
+                const SizedBox(height: 12),
+                const Text(
+                  'Tap island above to preview Notification, Music & Call cards',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            ),
+          ).animate().fade().scale(duration: 250.ms),
+          const SizedBox(height: 20),
 
-            // Master Enable Toggle Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+          // FLAGSHIP HERO STATUS CARD
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              color: statusColor.withValues(alpha: 0.1),
+              border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: Column(
+              children: [
+                Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isRunning ? AppTheme.primaryCyan.withValues(alpha: 0.2) : Colors.white10,
+                        color: statusColor.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        Icons.power_settings_new_rounded,
-                        color: isRunning ? AppTheme.primaryCyan : Colors.white38,
-                        size: 28,
+                        isRunning ? Icons.play_arrow_rounded : Icons.power_settings_new_rounded,
+                        color: statusColor,
+                        size: 30,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -140,19 +222,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Dynamic Island Service',
+                            statusTitle,
                             style: GoogleFonts.outfit(
                               color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
-                            isRunning ? 'Active & Floating Overlay Running' : 'Service Stopped',
-                            style: TextStyle(
-                              color: isRunning ? AppTheme.accentNeonGreen : Colors.white38,
-                              fontSize: 12,
-                            ),
+                            statusDesc,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
                       ),
@@ -164,149 +244,222 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.white12, height: 1),
+                const SizedBox(height: 12),
 
-            // Overlay Permission Warning Banner
-            if (!hasOverlayPermission) ...[
-              Card(
-                color: const Color(0x33FF5252),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Text(
-                          'Overlay permission required to display floating Dynamic Island.',
-                          style: TextStyle(color: Colors.white, fontSize: 13),
-                        ),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () async {
-                          final res = await PlatformBridge.requestOverlayPermission();
-                          ref.read(overlayPermissionGrantedProvider.notifier).state = res;
-                        },
-                        child: const Text('Grant'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Notification Listener Permission Banner
-            if (!hasNotifPermission) ...[
-              Card(
-                color: const Color(0x337F00FF),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.notifications_active_outlined, color: AppTheme.accentPurple, size: 28),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Text(
-                          'Notification Access required to intercept system alerts & music info.',
-                          style: TextStyle(color: Colors.white, fontSize: 13),
-                        ),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accentPurple,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () async {
-                          await PlatformBridge.requestNotificationListenerPermission();
-                          _checkPermissions();
-                        },
-                        child: const Text('Enable'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Feature Quick Modules
-            Text(
-              'Feature Modules',
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.4,
-              children: [
-                _buildModuleCard(
-                  context,
-                  title: 'Cutout Calibration',
-                  subtitle: 'Align island with punch hole',
-                  icon: Icons.center_focus_strong,
-                  color: AppTheme.primaryCyan,
-                  onTap: () => context.push('/calibration'),
-                ),
-                _buildModuleCard(
-                  context,
-                  title: 'Media Controls',
-                  subtitle: 'Spotify, YT Music, VLC',
-                  icon: Icons.music_note_rounded,
-                  color: AppTheme.primaryBlue,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Media Session Controller Active')),
-                    );
-                  },
-                ),
-                _buildModuleCard(
-                  context,
-                  title: 'Notifications',
-                  subtitle: 'App alerts & Quick Reply',
-                  icon: Icons.notifications_active_rounded,
-                  color: AppTheme.accentPurple,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Notification Interceptor Active')),
-                    );
-                  },
-                ),
-                _buildModuleCard(
-                  context,
-                  title: 'Hardware Stats',
-                  subtitle: 'Battery, RAM, Wi-Fi',
-                  icon: Icons.memory_rounded,
-                  color: AppTheme.accentNeonGreen,
-                  onTap: () async {
-                    final metrics = await PlatformBridge.getSystemMetrics();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Battery: ${metrics['batteryLevel']}% | Charging: ${metrics['isCharging']} | Wi-Fi: ${metrics['wifiConnected']}',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+                // Real-time Permission Status Badges
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatusChip('Overlay', hasOverlayPermission, () async {
+                      final res = await PlatformBridge.requestOverlayPermission();
+                      ref.read(overlayPermissionGrantedProvider.notifier).state = res;
+                    }),
+                    _buildStatusChip('Notifications', hasNotifPermission, () async {
+                      await PlatformBridge.requestNotificationListenerPermission();
+                      _checkPermissions();
+                    }),
+                    _buildStatusChip('Battery', isBatteryIgnored, () async {
+                      await PlatformBridge.requestIgnoreBatteryOptimization();
+                      _checkPermissions();
+                    }),
+                  ],
                 ),
               ],
+            ),
+          ).animate().slideY(begin: 0.1, end: 0, duration: 300.ms),
+          const SizedBox(height: 24),
+
+          // DASHBOARD STATS METRICS GRID
+          Text(
+            'System Metrics & Activity',
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.1,
+            children: [
+              _buildStatCard('Battery', '85%', Icons.battery_charging_full_rounded, AppTheme.accentNeonGreen),
+              _buildStatCard('Alerts Today', '14', Icons.notifications_none_rounded, AppTheme.accentPurple),
+              _buildStatCard('Refresh Rate', '120Hz', Icons.speed_rounded, AppTheme.primaryCyan),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // QUICK ACTION SETTINGS CATEGORIES (BENTO GRID)
+          Text(
+            'Quick Action Modules',
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.35,
+            children: [
+              _buildBentoCategoryCard(
+                title: 'Cutout Calibration',
+                subtitle: 'Align with punch hole',
+                icon: Icons.center_focus_strong_rounded,
+                color: AppTheme.primaryCyan,
+                onTap: () => setState(() => _currentTab = 1),
+              ),
+              _buildBentoCategoryCard(
+                title: 'Live Activities',
+                subtitle: 'Timers, Music, Calls',
+                icon: Icons.graphic_eq_rounded,
+                color: AppTheme.primaryBlue,
+                onTap: () => setState(() => _currentTab = 2),
+              ),
+              _buildBentoCategoryCard(
+                title: 'Theme Engine',
+                subtitle: 'AMOLED, Glass, Material You',
+                icon: Icons.palette_outlined,
+                color: AppTheme.accentPurple,
+                onTap: () => setState(() => _currentTab = 3),
+              ),
+              _buildBentoCategoryCard(
+                title: 'Gestures & Touch',
+                subtitle: 'Tap, Swipe, Long Press',
+                icon: Icons.gesture_rounded,
+                color: AppTheme.accentNeonGreen,
+                onTap: () => context.push('/settings'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // TAB 3: Live Activities Tab
+  Widget _buildLiveActivitiesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Live Activities & Widgets',
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Configure dynamic widgets rendered inside the expanded island.',
+            style: TextStyle(color: Colors.white60, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          _buildActivityCard('Media Session Controller', 'Spotify, YouTube Music, Apple Music', Icons.music_note_rounded, true),
+          const SizedBox(height: 12),
+          _buildActivityCard('Telephony & Phone Calls', 'Incoming, Ongoing, & Missed calls pill', Icons.call_rounded, true),
+          const SizedBox(height: 12),
+          _buildActivityCard('Notification Interceptor', 'System-wide notification popups & quick reply', Icons.notifications_active_rounded, true),
+          const SizedBox(height: 12),
+          _buildActivityCard('Timer & Stopwatch Activity', 'Live countdown timer inside floating pill', Icons.timer_rounded, false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityCard(String title, String subtitle, IconData icon, bool enabled) {
+    return Card(
+      child: SwitchListTile(
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        secondary: Icon(icon, color: AppTheme.primaryCyan),
+        value: enabled,
+        activeTrackColor: AppTheme.primaryCyan,
+        onChanged: (val) {},
+      ),
+    );
+  }
+
+  // TAB 4: Themes Tab
+  Widget _buildThemesTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Modular Theme Engine',
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Select visual theme style & color tokens.',
+            style: TextStyle(color: Colors.white60, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          _buildThemeStyleCard('Dark Theme', 'Default sleek dark surface', AppTheme.darkCard, true),
+          const SizedBox(height: 12),
+          _buildThemeStyleCard('AMOLED Theme', 'Pure black #000000 for battery savings', AppTheme.amoledCard, false),
+          const SizedBox(height: 12),
+          _buildThemeStyleCard('Glassmorphism', 'Translucent blur with subtle border', const Color(0x33000000), false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeStyleCard(String title, String subtitle, Color color, bool selected) {
+    return Card(
+      child: ListTile(
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white24),
+          ),
+        ),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        trailing: selected
+            ? const Icon(Icons.check_circle_rounded, color: AppTheme.primaryCyan)
+            : const Icon(Icons.circle_outlined, color: Colors.white24),
+        onTap: () {},
+      ),
+    );
+  }
+
+  // Status Chip Badge
+  Widget _buildStatusChip(String label, bool isGranted, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isGranted ? AppTheme.accentNeonGreen.withValues(alpha: 0.15) : Colors.redAccent.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isGranted ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+              color: isGranted ? AppTheme.accentNeonGreen : Colors.redAccent,
+              size: 14,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isGranted ? AppTheme.accentNeonGreen : Colors.redAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -314,8 +467,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _buildModuleCard(
-    BuildContext context, {
+  // Stat Card Widget
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Bento Category Card
+  Widget _buildBentoCategoryCard({
     required String title,
     required String subtitle,
     required IconData icon,
@@ -356,6 +527,38 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
+  // Modern Bottom Navigation Bar
+  Widget _buildModernBottomNavBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A),
+        border: Border(top: BorderSide(color: Colors.white12, width: 1)),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _currentTab,
+        onTap: (index) {
+          setState(() {
+            _currentTab = index;
+          });
+        },
+        backgroundColor: Colors.transparent,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppTheme.primaryCyan,
+        unselectedItemColor: Colors.white38,
+        selectedLabelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11),
+        unselectedLabelStyle: GoogleFonts.outfit(fontSize: 11),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.center_focus_strong_rounded), label: 'Calibrate'),
+          BottomNavigationBarItem(icon: Icon(Icons.graphic_eq_rounded), label: 'Live'),
+          BottomNavigationBarItem(icon: Icon(Icons.palette_outlined), label: 'Themes'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        ],
+      ),
+    );
+  }
+
+  // Developer Debug Panel Modal Sheet
   void _showDeveloperDebugPanel(BuildContext context) {
     showModalBottomSheet(
       context: context,
