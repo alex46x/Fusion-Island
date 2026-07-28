@@ -14,7 +14,7 @@ void main() {
 
     Animate.restartOnHotReload = false;
     await tester.pumpWidget(const ProviderScope(child: FusionIslandApp()));
-    await tester.pumpAndSettle(const Duration(milliseconds: 500));
+    await tester.pump();
     expect(find.byType(FusionIslandApp), findsOneWidget);
   });
 }
