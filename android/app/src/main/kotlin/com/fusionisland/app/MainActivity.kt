@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -25,7 +26,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Overlay MethodChannel
+        // Overlay & Permission MethodChannel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OVERLAY_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isOverlayPermissionGranted" -> {
@@ -56,6 +57,31 @@ class MainActivity : FlutterActivity() {
                 }
                 "requestNotificationListenerPermission" -> {
                     val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    startActivity(intent)
+                    result.success(true)
+                }
+                "isBatteryOptimizationIgnored" -> {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    val isIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        pm.isIgnoringBatteryOptimizations(packageName)
+                    } else {
+                        true
+                    }
+                    result.success(isIgnored)
+                }
+                "requestIgnoreBatteryOptimization" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        startActivity(intent)
+                    }
+                    result.success(true)
+                }
+                "openAppSettings" -> {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
                     startActivity(intent)
                     result.success(true)
                 }

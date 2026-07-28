@@ -16,6 +16,8 @@ class PlatformBridge {
       return result;
     } on PlatformException {
       return false;
+    } on MissingPluginException {
+      return false;
     }
   }
 
@@ -26,6 +28,8 @@ class PlatformBridge {
           await _overlayChannel.invokeMethod('requestOverlayPermission');
       return result;
     } on PlatformException {
+      return false;
+    } on MissingPluginException {
       return false;
     }
   }
@@ -38,6 +42,8 @@ class PlatformBridge {
       return result;
     } on PlatformException {
       return false;
+    } on MissingPluginException {
+      return false;
     }
   }
 
@@ -45,9 +51,34 @@ class PlatformBridge {
   static Future<void> requestNotificationListenerPermission() async {
     try {
       await _overlayChannel.invokeMethod('requestNotificationListenerPermission');
+    } catch (_) {}
+  }
+
+  /// Check if Battery Optimization is ignored
+  static Future<bool> isBatteryOptimizationIgnored() async {
+    try {
+      final bool result =
+          await _overlayChannel.invokeMethod('isBatteryOptimizationIgnored');
+      return result;
     } on PlatformException {
-      // Platform unsupported or error
+      return false;
+    } on MissingPluginException {
+      return false;
     }
+  }
+
+  /// Request to ignore Battery Optimization
+  static Future<void> requestIgnoreBatteryOptimization() async {
+    try {
+      await _overlayChannel.invokeMethod('requestIgnoreBatteryOptimization');
+    } catch (_) {}
+  }
+
+  /// Open Android Application Details Settings Page
+  static Future<void> openAppSettings() async {
+    try {
+      await _overlayChannel.invokeMethod('openAppSettings');
+    } catch (_) {}
   }
 
   /// Start Floating Overlay Foreground Service
@@ -56,7 +87,7 @@ class PlatformBridge {
       final bool result =
           await _overlayChannel.invokeMethod('startOverlay');
       return result;
-    } on PlatformException {
+    } catch (_) {
       return false;
     }
   }
@@ -67,7 +98,7 @@ class PlatformBridge {
       final bool result =
           await _overlayChannel.invokeMethod('stopOverlay');
       return result;
-    } on PlatformException {
+    } catch (_) {
       return false;
     }
   }
@@ -92,7 +123,7 @@ class PlatformBridge {
         },
       );
       return result;
-    } on PlatformException {
+    } catch (_) {
       return false;
     }
   }
@@ -105,9 +136,7 @@ class PlatformBridge {
       if (result != null) {
         return Map<String, dynamic>.from(result);
       }
-    } on PlatformException {
-      // Fallback dummy metrics
-    }
+    } catch (_) {}
     return {
       'batteryLevel': 85,
       'isCharging': true,
@@ -117,8 +146,13 @@ class PlatformBridge {
 
   /// Stream of incoming notifications from Android NotificationListenerService
   static Stream<Map<String, dynamic>> get notificationStream {
-    return _notificationEventChannel
-        .receiveBroadcastStream()
-        .map((event) => Map<String, dynamic>.from(event as Map));
+    try {
+      return _notificationEventChannel
+          .receiveBroadcastStream()
+          .map((event) => Map<String, dynamic>.from(event as Map))
+          .handleError((_) => const Stream.empty());
+    } catch (_) {
+      return const Stream.empty();
+    }
   }
 }

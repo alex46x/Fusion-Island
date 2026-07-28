@@ -61,6 +61,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         title: Text(AppConstants.appName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
+            icon: const Icon(Icons.bug_report_outlined, color: AppTheme.primaryCyan),
+            tooltip: 'Developer Debug Panel',
+            onPressed: () => _showDeveloperDebugPanel(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.white),
             onPressed: () => context.push('/settings'),
           ),
@@ -347,6 +352,57 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showDeveloperDebugPanel(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D1117),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final isRunning = ref.read(overlayServiceRunningProvider);
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bug_report_rounded, color: AppTheme.primaryCyan),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Internal Developer Debug Panel',
+                    style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildDebugTile('Service State', isRunning ? 'Active (TYPE_APPLICATION_OVERLAY)' : 'Stopped', isRunning ? AppTheme.accentNeonGreen : Colors.redAccent),
+              _buildDebugTile('Cutout Alignment Mode', 'LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES', AppTheme.primaryCyan),
+              _buildDebugTile('Target Refresh Rate', '120Hz Hardware Accelerated', AppTheme.primaryBlue),
+              _buildDebugTile('Notification Stream', 'Active BroadcastListener', AppTheme.accentPurple),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDebugTile(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          Text(value, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
